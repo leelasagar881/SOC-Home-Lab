@@ -1,0 +1,19 @@
+root@wazuh-manger:/opt/tools# cat /var/ossec/etc/decoders/local_decoder.xml
+<!-- Local Decoders -->
+<decoder name="myapp">
+  <program_name>^myapp</program_name>
+</decoder>
+
+<decoder name="myapp-login">
+  <parent>myapp</parent>
+  <prematch>logged in</prematch>
+  <regex>User (\S+) logged in from (\S+) (\S+)</regex>
+  <order>dstuser, srcip, status</order>
+</decoder>
+
+<decoder name="myapp-failed">
+  <parent>myapp</parent>
+  <prematch>failed login</prematch>
+  <regex>User (\S+) failed login from (\S+)</regex>
+  <order>dstuser, srcip</order>
+</decoder>
