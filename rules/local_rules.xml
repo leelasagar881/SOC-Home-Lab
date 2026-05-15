@@ -1,0 +1,151 @@
+root@wazuh-manger:/opt/tools# cat /var/ossec/etc/decoders/local_decoder.xml
+<!-- Local Decoders -->
+<decoder name="myapp">
+  <program_name>^myapp</program_name>
+</decoder>
+
+<decoder name="myapp-login">
+  <parent>myapp</parent>
+  <prematch>logged in</prematch>
+  <regex>User (\S+) logged in from (\S+) (\S+)</regex>
+  <order>dstuser, srcip, status</order>
+</decoder>
+
+<decoder name="myapp-failed">
+  <parent>myapp</parent>
+  <prematch>failed login</prematch>
+  <regex>User (\S+) failed login from (\S+)</regex>
+  <order>dstuser, srcip</order>
+</decoder>
+root@wazuh-manger:/opt/tools# cat /var/ossec/etc/rules/local_rules.xml
+<group name="custom_rules,">
+
+  <rule id="100001" level="10" frequency="5" timeframe="60">
+    <if_matched_sid>5710</if_matched_sid>
+    <same_srcip />
+    <description>SSH Brute Force: 5+ failed logins from same IP in 60 seconds</description>
+    <mitre><id>T1110.001</id></mitre>
+    <group>authentication_failed,brute_force,</group>
+  </rule>
+
+  <rule id="100002" level="12">
+    <if_matched_sid>100001</if_matched_sid>
+    <if_sid>5715</if_sid>
+    <description>SSH Brute Force Success: Login succeeded after multiple failures</description>
+    <mitre><id>T1110.001</id></mitre>
+    <group>authentication_success,brute_force,</group>
+  </rule>
+
+  <rule id="100003" level="10">
+    <if_sid>5402</if_sid>
+    <match>incorrect password attempt</match>
+    <description>Privilege Escalation: Failed sudo attempt</description>
+    <mitre><id>T1548.003</id></mitre>
+    <group>privilege_escalation,</group>
+  </rule>
+
+  <rule id="100004" level="12">
+    <if_sid>5303</if_sid>
+    <match>to root</match>
+    <description>Privilege Escalation: User switched to root</description>
+    <mitre><id>T1548.003</id></mitre>
+    <group>privilege_escalation,</group>
+  </rule>
+
+  <rule id="100005" level="12">
+    <if_sid>550</if_sid>
+    <field name="file">/etc/passwd|/etc/shadow|/etc/sudoers</field>
+    <description>FIM Alert: Critical system file modified</description>
+    <mitre><id>T1098</id></mitre>
+    <group>syscheck,fim_critical,</group>
+  </rule>
+
+  <rule id="100006" level="8">
+    <if_sid>554</if_sid>
+    <field name="file">/tmp/</field>
+    <description>FIM Alert: New file created in /tmp</description>
+    <mitre><id>T1059</id></mitre>
+    <group>syscheck,fim_suspicious,</group>
+  </rule>
+
+  <rule id="100007" level="12">
+    <if_sid>510</if_sid>
+    <description>Malware: Rootkit or trojan detected</description>
+    <mitre><id>T1014</id></mitre>
+    <group>malware,rootkit,</group>
+  </rule>
+
+  <rule id="100008" level="10">
+    <if_sid>533</if_sid>
+    <description>Malware: Suspicious process anomaly detected</description>
+    <mitre><id>T1055</id></mitre>
+    <group>malware,process_anomaly,</group>
+  </rule>
+
+  <rule id="100009" level="10">
+    <if_sid>31101</if_sid>
+    <url>select|union|insert|drop|exec|script</url>
+    <description>Web Attack: Possible SQL Injection attempt</description>
+    <mitre><id>T1190</id></mitre>
+    <group>web_attack,sql_injection,</group>
+  </rule>
+
+  <rule id="100010" level="10">
+    <if_sid>31101</if_sid>
+    <url>../|..\|%2e%2e</url>
+    <description>Web Attack: Directory traversal attempt</description>
+    <mitre><id>T1083</id></mitre>
+    <group>web_attack,directory_traversal,</group>
+  </rule>
+
+  <rule id="100020" level="0">
+    <if_sid>100008</if_sid>
+    <match>splunk|agent-manager|mongod|identity</match>
+    <description>Suppress: Known Splunk process - not anomaly</description>
+  </rule>
+
+  <rule id="100021" level="0">
+    <if_sid>86601</if_sid>
+    <match>ET INFO GNU/Linux APT User-Agent</match>
+    <description>Suppress: APT package manager traffic</description>
+  </rule>
+
+  <rule id="100022" level="0">
+    <if_sid>86601</if_sid>
+    <match>Go-http-client</match>
+    <description>Suppress: GCP metadata service traffic</description>
+  </rule>
+
+  <rule id="100023" level="10">
+    <if_sid>533</if_sid>
+    <match>new port|opened</match>
+    <description>Suspicious port opened - possible backdoor</description>
+    <mitre><id>T1571</id></mitre>
+    <group>network,suspicious_port,</group>
+  </rule>
+
+  <rule id="100030" level="3">
+    <decoded_as>myapp</decoded_as>
+    <status>successfully</status>
+    <description>myapp: User login successful</description>
+    <mitre><id>T1078</id></mitre>
+    <group>authentication_success,myapp,</group>
+  </rule>
+
+  <rule id="100031" level="8">
+    <decoded_as>myapp</decoded_as>
+    <match>failed login</match>
+    <description>myapp: User login failed</description>
+    <mitre><id>T1110</id></mitre>
+    <group>authentication_failed,myapp,</group>
+  </rule>
+
+  <rule id="100032" level="10" frequency="5" timeframe="60">
+    <if_matched_sid>100031</if_matched_sid>
+    <same_srcip />
+    <description>myapp: Brute force - 5+ failed logins from same IP</description>
+    <mitre><id>T1110.001</id></mitre>
+    <group>authentication_failed,brute_force,myapp,</group>
+  </rule>
+
+</group>
