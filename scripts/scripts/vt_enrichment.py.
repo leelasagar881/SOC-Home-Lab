@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+from datetime import datetime
+
+VT_API_KEY = "a56dff0fd930078543c4afcb85f4a7aaed92d6ce5eedf928bc5c14ba4bbb533c"
+LOG_PATH   = "/var/ossec/logs/active-responses.log"
+
+def check_vt(ip):
+    url     = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
+    headers = {"x-apikey": VT_API_KEY}
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            attr  = r.json().get("data", {}).get("attributes", {})
+            stats = attr.get("last_analysis_stats", {})
+            mal   = stats.get("malicious", 0)
+            sus   = stats.get("suspicious", 0)
+            return {
+                "malicious" : mal,
+                "suspicious": sus,
+                "country"   : attr.get("country", "??"),
+                "isp"       : attr.get("as_owner", "Unknown"),
+                "verdict"   : "MALICIOUS" if mal >= 3 else "SUSPICIOUS" if mal >= 1 else "CLEAN"
+            }
+    except Exception as e:
+        write_log({"error": str(e)})
+    return None
+
+def write_log(data):
+    with open(LOG_PATH, "a") as f:
+        f.write(json.dumps(data) + "\n")
+
+def main():
+    try:
+        raw   = sys.stdin.read()
+        data  = json.loads(raw)
+        alert = data.get("parameters", {}).get("alert", data)
+        src_ip = (alert.get("data", {}).get("src_ip") or
+                  alert.get("data", {}).get("srcip") or
+                  alert.get("data", {}).get("flow", {}).get("src_ip"))
+
+        if not src_ip:
+            sys.exit(0)
+
+        rep = check_vt(src_ip)
+        if rep:
+            write_log({
+                "timestamp"     : datetime.utcnow().isoformat(),
+                "source_ip"     : src_ip,
+                "vt_malicious"  : rep["malicious"],
+                "vt_suspicious" : rep["suspicious"],
+                "country"       : rep["country"],
+                "isp"           : rep["isp"],
+                "verdict"       : rep["verdict"]
+            })
+    except Exception as e:
+        write_log({"exception": str(e)})
+
+if __name__ == "__main__":
+    main()
